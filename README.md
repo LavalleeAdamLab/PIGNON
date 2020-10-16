@@ -5,8 +5,8 @@ The bases of the algorithm measures the clustering of proteins with a shared Gen
 Instructions below to run PIGNON from the command line. 
 
 ## Dependencies
-*Java Version 8+
-*R equired library: The Apache Commons Mathematics Library (commons-math3-3.6.1.jar)
+* Java Version 8+
+* R equired library: The Apache Commons Mathematics Library (commons-math3-3.6.1.jar)
 
 ## Files
 ### Required input files
@@ -16,14 +16,14 @@ Found under: *input_files*
 *Quantitative proteomics dataset (ncomms10259-BreastCancerProteinExpression.txt)
 
 ### Intermediate files PIGNON will generate
-*initial distance matrix
-*final distance matrix of fully connected component
-*Monte Carlo distribution
-*shuffle Gene Ontology set
+* initial distance matrix
+* final distance matrix of fully connected component
+* Monte Carlo distribution
+* shuffle Gene Ontology set
 
 ### Files PIGNON will output 
-*false discovery rates at significant thresholds mapping (.tsv)
-*Stats summary of tested GO terms (.tsv)
+* false discovery rates at significant thresholds mapping (.tsv)
+* Stats summary of tested GO terms (.tsv)
 
 ## To run PIGNON
 1. Download the repository.
