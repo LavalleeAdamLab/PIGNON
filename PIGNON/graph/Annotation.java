@@ -59,7 +59,7 @@ public class Annotation {
         return this.name;
     }
 
-    public ArrayList<String> getGeneSymbols() {
+    public ArrayList<String> getProteinIds() {
         return this.protein_names;
     }
 

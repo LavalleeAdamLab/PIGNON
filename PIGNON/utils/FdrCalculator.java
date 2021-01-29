@@ -29,8 +29,12 @@ public class FdrCalculator {
      * @param distanceMatrix distance matrix which is used to calculate TPD.
      */
     public void modifyGoAnnotationsWithTPD(double[][] distanceMatrix) {
+    	System.out.println("computing annotation TPDs:");
         Modifier.setClusterTPD(goAnnotations, distanceMatrix); // Annotation Go List
+        System.out.println("");
+        System.out.println("computing shuffled annotation TPDs:");
         Modifier.setClusterTPD(shuffledGoAnnotations, distanceMatrix); // Shuffled Annotations
+        System.out.println("");
     }
 
     /**
@@ -41,11 +45,11 @@ public class FdrCalculator {
      *
      * @param distributionParametersFilePath path to the file with distribution parameter
      */
-    public double modifyGoAnnotationsWithPvalueFromNormalApproximation(String distributionParametersFilePath) {
+    public double modifyGoAnnotationsWithPvalueFromNormalApproximation(String distributionParametersFilePath, int numOfSampling) {
     	
     	double[] minimum_pvals = new double[2];
-        minimum_pvals[0] = NormalApproximation.importNormalDistributionParameters(goAnnotations, distributionParametersFilePath);
-        minimum_pvals[1] = NormalApproximation.importNormalDistributionParameters(shuffledGoAnnotations, distributionParametersFilePath);
+        minimum_pvals[0] = NormalApproximation.importNormalDistributionParameters(goAnnotations, distributionParametersFilePath, numOfSampling);
+        minimum_pvals[1] = NormalApproximation.importNormalDistributionParameters(shuffledGoAnnotations, distributionParametersFilePath, numOfSampling);
         
         double min_pval = Math.min(minimum_pvals[0], minimum_pvals[1]);
         

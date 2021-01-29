@@ -1,4 +1,11 @@
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Properties;
 
 import graph.Annotation;
 import graph.FalseDiscoveryRate;
@@ -9,220 +16,174 @@ import utils.*;
 
 public class Main {
 
-	/*** Constant network variables ***/
-	public static final boolean testBreastCancerWeightedNetwork = true;
-	public static final boolean testHer2vsTN = true;
-	public static final boolean testHer2vsHR = false;
-	public static final boolean testHRvsTN = false;
-	
-	public static final boolean removeOverlyConnectedProteins = false; 
-	public static final int numOfExcessInteractions = 1000;
+	public static final boolean removeOverlyConnectedProteins = true; // default = TRUE
+	public static final int numOfExcessInteractions = 1000;	// default = 1000
 
 	/*** Constants method variables ***/
-
-	public static final boolean toComputeDistanceMatrix = false;
-	public static final boolean toUpdateDistanceMatrix = false;
-
 	public static final boolean toMonteCarlo = false;
-	public static final boolean weightedSampling = true;
-	public static final boolean testNormalApprox  = true;
 
 	public static final boolean testGoTerms = false;
-	public static final boolean printFDRresults = true;
-	public static final boolean printSignificantGOterms = true;
 	public static final boolean cleanClusters = false;
-
-	/*** Constant running variables ***/
-	public static final boolean runComputeCanada = false;
 
 	/**** Constant output variables ***/
 	public static final boolean printNumberOfInteractionsPerProtein = false;
 	public static final boolean printPPInetwork = false;
 
-	public static final boolean toShuffle = false;
-	public static final boolean printShuffledGOList = true;
-
 	/**** Constant  distribution variables ****/ 
-	public static final boolean computeDistributionParams = true; //if true don't recalculate parameters
-	public static final boolean useNormalDistribution = true; //if false uses monte carlo values
+	public static final boolean computeDistributionParams = true;
+	public static final boolean useNormalDistribution = true; //if false uses monte carlo values: default = True
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws FileNotFoundException, IOException {
 
 		/**
 		 * PIGNON stands for a Protein-protein Interaction-Guided fuNctiOnal eNrichment analysis for quantitative proteomics. 
-		 * This algorithm assesses the clustering of proteins associated to Gene Ontology terms within the BioGRID PPI network. 
+		 * This algorithm assesses the clustering of proteins associated to Gene Ontology terms within the BioGRID or String PPI network. 
 		 * This algorithm was implemented on a PPI network weighted with proteomics expression data of various breast cancer
 		 * subtype (study by Tyanova et al. 2015). 
 		 * 
 		 * Input
 		 *  - BioGRID (Homo sapiens). version 3.4.158 release March 1st 2018.
+		 *  - String (Homo sapiens) 
 		 *  - Protein expression file (Tyanova et al. study)
 		 *  - GO annotations (Homo sapiens). Gene Ontology Consortium obtained June 2018.
 		 *  
 		 *  Output
 		 *  - FDR to p-value mapping file
 		 *  - Summary of GO annotations and clustering statistics
+		 *  
+		 *  TO UPDATE: 
+		 *  - Format input file
 		 ***/
+	
+		/* Load Java properties file which contains parameters for running of the tool */
+		System.out.println("Loading parameters file \n");
+		Properties params = new Properties();
+		params.load(new FileInputStream(args[0]));
 
-		int nProtToSampleLowerBound = Integer.parseInt(args[0]);		// Lower limit of number of proteins sampled
-		int nProtToSampleUpperBound = Integer.parseInt(args[1]);		// Upper limit of number of proteins sampled
-		int numOfTimesNetworkIsSampled = Integer.parseInt(args[2]);		// Number of times the network is sampled during Monte Carlo Method
+		String condition1 = params.getProperty("condition1").replace("\\s+", "");
+		String condition2 = params.getProperty("condition2").replace("\\s+", "");
+
+		int nProtToSampleLowerBound = Integer.parseInt(params.getProperty("lowerBound").replaceAll("\\s+",""));				// Lower limit of number of proteins sampled
+		int nProtToSampleUpperBound = Integer.parseInt(params.getProperty("upperBound").replaceAll("\\s+",""));				// Upper limit of number of proteins sampled
+		int numOfTimesNetworkIsSampled = Integer.parseInt(params.getProperty("numOfIterations").replaceAll("\\s+",""));		// Number of times the network is sampled during Monte Carlo Method
+
+		int networkWeights = Integer.parseInt(params.getProperty("networkWeights").replaceAll("\\s+",""));		// weither to use protein expression weights or not
+		int networkType = Integer.parseInt(params.getProperty("networkType").replaceAll("\\s+",""));			// specify use of BioGRID or String network
+		String taxonomyID = params.getProperty("taxonomyID").replaceAll("\\s+", "");
+		
+		int samplingType = Integer.parseInt(params.getProperty("samplingType").replace("\\s+", ""));
+		
+		String projectName = params.getProperty("project_name");	// Specify project name
 		
 		/* UPDATE working directory */ 
-		String working_directory = "/Users/Rachel/eclipse-files/network2020/";
+		String working_directory = params.getProperty("working_directory");
 		
-		/* File paths when running on remote cluster */
-		String bioGRID_inputFile = "BIOGRID-ORGANISM-Homo_sapiens-3.4.161.tab2.txt";
-		String protein_expression_file = "ncomms10259-BreastCancerProteinExpression.txt";
-		String annotationGO_inputFile = "GO_annotations-9606-inferred-allev-2.tsv";
+		/* Create directory for IO files ands output files */ 
+		File directory = new File(working_directory + "/IO_files");
+	    if (! directory.exists()){
+	    	System.out.println("creating IO_files directory");
+	        directory.mkdir();
+	    }
+	    
+		File directory2 = new File(working_directory + "/output_files");
+	    if (! directory2.exists()){
+	    	System.out.println("creating output_files directory\n");
+	        directory2.mkdir();
+	    }
 
-		String distanceMatrixFile = "unweighted_DistanceMatrix.txt";
-		String distanceMatrix2File = "unweighted_DistanceMatrix_FullConnected.txt";
+		/* input files */
+		String interactionNetwork_inputFile = working_directory+ params.getProperty("protein_interaction_repository").replaceAll("\\s+", "");
+		String ensembleToEntrezIdMap_inputFile = working_directory + params.getProperty("ensembleIdToEntrezIdFile").replaceAll("\\s+", "");		// required for String network
+		String protein_expression_file = working_directory+ params.getProperty("protein_expression_data").replaceAll("\\s+", "");
+		String annotationGO_inputFile = working_directory + params.getProperty("gene_ontology_file").replaceAll("\\s+", "");
+		String shuffledGOFile = working_directory +"IO_files/" +"shuffled_gene_ontologies.txt";
+		
+		/* Specify network type name for output file writing */ 
+		String ppiNetwork = "";
+		switch(networkType) {
+		case 0:
+			ppiNetwork = "BioGRID";
+			break;
+		case 1: 
+			ppiNetwork = "String";
+			break;
+		}
 
-		String distributionFile = "unweightedNetwork2.0_s10^7_n1_1000.txt";
-
-		if (testBreastCancerWeightedNetwork) {
-			if (testHer2vsTN) {
-				distanceMatrixFile = "her2vTNegWeighted_DistanceMatrix.txt";
-				distanceMatrix2File = "her2vTNegWeighted_DistanceMatrix2_FullConnected.txt";
-				
-				if(!removeOverlyConnectedProteins) {
-					distanceMatrixFile = "her2vTNegWeighted_wOverConnectedProteins_DistanceMatrix.txt";
-					distanceMatrix2File = "her2vTNegWeighted_wOverConnectedProteins_DistanceMatrix2_FullConnected.txt";
-				}
-				
-				if(weightedSampling) {
-					distributionFile = "weightedNetwork2.0_s10^7_n1_1000.txt";
-				} else {
-					distributionFile = "unweightedNetwork2.0_s10^7_n1_1000.txt";
-				}
-
-			} else if(testHer2vsHR) {
-				distanceMatrixFile = "her2vHRWeighted_DistanceMatrix.txt";
-				distanceMatrix2File = "her2vHRWeighted_DistanceMatrix_FullConnected.txt";
-			} else if(testHRvsTN) {
-				distanceMatrixFile = "HRvTNegWeighted_DistanceMatrix.txt";
-				distanceMatrix2File = "HRvTNegWeighted_DistanceMatrix_FullConnected.txt";
-			}
+		String samplingName = "";
+		switch(samplingType) {
+		case 0:
+			samplingName = "unweightedSampling";
+			break;
+		case 1: 
+			samplingName = "weightedSampling";
+			break;
 		}
 		
-		/* UPDATE File paths when running on local computer */
-		if (!runComputeCanada) {
-			bioGRID_inputFile = working_directory + "input_files/BIOGRID-ORGANISM-Homo_sapiens-3.4.161.tab2.txt";
-			protein_expression_file = working_directory + "input_files/ncomms10259-BreastCancerProteinExpression.txt";
-			annotationGO_inputFile = working_directory + "input_files/GO_annotations-9606-inferred-allev-2.tsv";
-
-			distanceMatrixFile = working_directory + "IO_files/unweighted_DistanceMatrix.txt";
-			distanceMatrix2File = working_directory + "IO_files/unweighted_DistanceMatrix_FullConnected.txt";
-
-			if(weightedSampling) {
-				distributionFile = working_directory + "IO_files/unweightNetwork_weightedSampling_s10X7_n3_1000.txt";
-			} else {
-				distributionFile = working_directory + "IO_files/unweightedNetwork_unweightedSampling_s10X7_n3_1000.txt";
-			}
-
-			if (testBreastCancerWeightedNetwork) {
-				if (testHer2vsTN) {
-					distanceMatrixFile = working_directory + "IO_files/her2vTNegWeighted_DistanceMatrix.txt";
-					distanceMatrix2File = working_directory + "IO_files/her2vTNegWeighted_DistanceMatrix2_FullConnected.txt";
-					
-					if(!removeOverlyConnectedProteins) {
-						distanceMatrixFile = working_directory + "IO_files/her2vTNegWeighted_wOverConnectedProteins_DistanceMatrix.txt";
-						distanceMatrix2File = working_directory + "IO_files/her2vTNegWeighted_wOverConnectedProteins_DistanceMatrix2_FullConnected.txt";
-					}
-
-					if(weightedSampling) {
-						distributionFile = working_directory + "IO_files/her2vTNeg_weightedSampling_updatedGO_s10X7_n3_1000.txt";
-						
-						if(!removeOverlyConnectedProteins) {
-							distributionFile = working_directory + "IO_files/her2vTNegWeightNetworkFullConnected_weightedSampling_s10X7_n3_1000.txt";
-						}
-					} else {
-						distributionFile = working_directory + "IO_files/her2vTNegWeightedNetwork_unweightedSampling_s10X7_n3_1000.txt";
-					}
-
-				}  else if(testHer2vsHR) {
-					distanceMatrixFile = working_directory + "IO_files/her2vHRWeighted_DistanceMatrix.txt";
-					distanceMatrix2File = working_directory + "IO_files/her2vHRWeighted_DistanceMatrix_FullConnected.txt";
-
-					distributionFile = working_directory + "IO_files/her2vHRWeightNetwork_weightedSampling_s10X7_n3_1000.txt";
-				} else if(testHRvsTN) {
-					distanceMatrixFile = working_directory + "IO_files/HRvTNegWeighted_DistanceMatrix.txt";
-					distanceMatrix2File = working_directory + "IO_files/HRvTNegWeighted_DistanceMatrix_FullConnected.txt";
-					
-					distributionFile = working_directory + "IO_files/HRvTNegWeightNetwork_weightedSampling_s10X7_n3_1000.txt";
-				}
-			}
+		String networkWeighted = "";
+		switch(networkWeights) {
+		case 0 :
+			networkWeighted = "not weighted";
+			break;
+		case 1: 
+			networkWeighted = "weighted";
+			break;
 		}
+		
+		/* intermediate files */
+		String distanceMatrixFile = working_directory + "IO_files/" +projectName + "_" + ppiNetwork + "_DistanceMatrix.txt";
+		String distanceMatrix2File = working_directory + "IO_files/" + projectName + "_" + ppiNetwork + "_DistanceMatrix_FullConnected.txt";
 
-		/* Output files */
-		String fdrExportFile = working_directory + "output_files/2020.02.19.MonoTransf_FDRvPval_unweightedNetwork_weightedSampling10X7.txt";
-		String goExportFile = working_directory + "output_files/2020.02.19.MonoTransf_GoTerms_unweightedNetwork_weightedSampling10X7_newGOFile.txt";
+		String distributionFile = working_directory + "IO_files/" + projectName + "_" + ppiNetwork + "_" + samplingName + "_s" + numOfTimesNetworkIsSampled + "_" +
+				nProtToSampleLowerBound + "_" + nProtToSampleUpperBound + ".txt";
 
-		String shuffledGOFile = working_directory + "IO_files/20202.02.19_geneOntologiesShuffled2.txt";
-		String normalDistributionParametersFile = working_directory + "IO_files/unweightedNetwork_weightedSampling_normalDistributionParams.txt";
+		String normalDistributionParametersFile = working_directory + "IO_files/" + projectName + "_" + ppiNetwork + "_" + samplingName + "_s" + numOfTimesNetworkIsSampled+"_normalDistributionParams.txt";
 
-		if(testHer2vsTN) {
-			if(weightedSampling) {
-				fdrExportFile = working_directory + "output_files/2020.02.19.MonoTransf_FDRvPval_her2vTNweightedSampling10X7_newGOFile.txt";
-				goExportFile = working_directory + "output_files/2020.02.19.MonoTransf_GoTerms_her2vTNweightedSampling10X7_newGOFile.txt";
-				normalDistributionParametersFile = working_directory + "IO_files/her2vTNeg_weightedSampling_normalDistributionParams.txt";
-				if(!removeOverlyConnectedProteins) {
-					fdrExportFile = working_directory + "output_files/2020.08.07.MonoTransf_FDRvPval_her2vTNweightedSampling_wOverConnectedProteins10X7.txt";
-					goExportFile = working_directory + "output_files/2020.08.07.MonoTransf_GoTerms_her2vTNweightedSampling_wOverConnectedProteins10X7.txt";
-					normalDistributionParametersFile = working_directory + "IO_files/her2vTNeg_weightedSampling__wOverConnectedProteins_normalDistributionParams.txt";
-					shuffledGOFile =  working_directory + "IO_files/overconnectedNetwork_shuffledGOannotations.tsv";
-				}
-			} else {
-				fdrExportFile = working_directory + "output_files/2020.03.31.MonoTransf_FDRvPval_her2vTN_unweightedSampling10X7.txt";
-				goExportFile = working_directory + "output_files/2020.03.31.MonoTransf_GoTerms_her2vTN_unweightedSampling10X7.txt";
-				normalDistributionParametersFile = working_directory + "IO_files/her2vTNeg_unweightedSampling_normalDistributionParams.txt";
-			}
-		} else if(testHer2vsHR) {
-			fdrExportFile = working_directory + "output_files/2020.07.24.MonoTransf_FDRvPval_her2vHRweightedSampling10X7.txt";
-			goExportFile = working_directory + "output_files/2020.07.24.MonoTransf_GoTerms_her2vHRweightedSampling10X7.txt";
-			normalDistributionParametersFile = working_directory + "IO_files/her2vHR_weightedSampling_normalDistributionParams.txt";
-		} else if(testHRvsTN) {
-			fdrExportFile = working_directory + "output_files/2020.06.23.MonoTransf_FDRvPval_HRvTNweightedSampling10X7.txt";
-			goExportFile = working_directory + "output_files/2020.06.23.MonoTransf_GoTerms_HRvTNweightedSampling10X7.txt";
-			normalDistributionParametersFile = working_directory + "IO_files/HRvTNeg_weightedSampling_normalDistributionParams.txt";
-		} else {
-			if(weightedSampling) {
-				fdrExportFile = working_directory + "output_files/2020.02.19.MonoTransf_FDRvPval_unweightedNetwork_weightedSampling10X7.txt";
-				goExportFile = working_directory + "output_files/2020.02.19.MonoTransf_GoTerms_unweightedNetwork_weightedSampling10X7_newGOFile.txt";
-				normalDistributionParametersFile = working_directory + "IO_files/unweightedNetwork_weightedSampling_normalDistributionParams.txt";
-			} else { 
-				fdrExportFile = working_directory + "output_files/2020.04.16.MonoTransf_FDRvPval_unweightedNetwork_unweightedSampling10X7.txt";
-				goExportFile = working_directory + "output_files/2020.04.16.MonoTransf_GoTerms_unweightedNetwork_unweightedSampling10X7.txt";
-				normalDistributionParametersFile = working_directory + "IO_files/unweightedNetwork_unweightedSampling10X7_normalDistributionParams.txt";
-			}
+		/* output files  */
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss.");	
+		Timestamp timestamp = new Timestamp(System.currentTimeMillis());		// get current time stamp in above specified format
+
+		String fdrExportFile = working_directory + "output_files/" + sdf.format(timestamp) + projectName + "_" + ppiNetwork + "_" + samplingName + "_MonoTransf_FDRvPval_s" + numOfTimesNetworkIsSampled + ".txt";
+		String goExportFile = working_directory + "output_files/" + sdf.format(timestamp) + projectName + "_" + ppiNetwork +  "_" + samplingName + "_SummaryGoTerms_s" + numOfTimesNetworkIsSampled + ".txt";
+		String goDetailsFile = working_directory + "output_files/" + sdf.format(timestamp) + projectName + "_" + ppiNetwork + "_" + samplingName + "_DetailedGoTerms_s" + numOfTimesNetworkIsSampled + ".txt";;
+		
+		System.out.println("Running PIGNON job: " + projectName + "\n" + "PPI network: " + ppiNetwork + " is " + networkWeighted + " with quantification data");
+		if(networkWeights == 1) {
+			System.out.println("condition1 = " + condition1 + "| condition 2 = " + condition2);
 		}
+		System.out.println("Null model using " + samplingName + " for annotations of size " + nProtToSampleLowerBound + " - " + nProtToSampleUpperBound + " with " + numOfTimesNetworkIsSampled + " sampling\n");
 		//String mclGraphFile = working_directory + "output_files/unweightedMCLgraph.txt";
-		String proteinListFile = working_directory + "output_files/2020.10.15.proteinsInNetworkList_wOverConnectedProteins.txt";
+		//String proteinListFile = working_directory + "output_files/2020.10.15.proteinsInNetworkList_wOverConnectedProteins.txt";
 		//		String nInteractionsPerProtFile = "/Users/Rachel/eclipse-files/network2.0/output_files/proteins.txt";
 
 
-		/* Read BioGRID file. Extract all possible interactions between proteins and store in Interaction object */
-		ArrayList<Interaction> networkInteractionsList = NetworkInteractionsLoader.importInteractionNetwork(bioGRID_inputFile, runComputeCanada, removeOverlyConnectedProteins, numOfExcessInteractions);
+		/* Read PPI repository. Extract all possible interactions between proteins and store in Interaction object */
+		System.out.println("Loading interaction repository");
+		ArrayList<Interaction> networkInteractionsList = NetworkInteractionsLoader.importInteractionNetwork(interactionNetwork_inputFile, networkType, ensembleToEntrezIdMap_inputFile, removeOverlyConnectedProteins, numOfExcessInteractions, taxonomyID);
+		System.out.println("number of interactions: " + networkInteractionsList.size());
 
 		/* Extract all proteins in the network (ie. all proteins within the interaction file) */
 		ArrayList<Protein> networkProteinList = NetworkProteins.getProteinsInNetwork(networkInteractionsList);
+		System.out.println("Number of proteins: " + networkProteinList.size() + "\n");
 
-		if(testBreastCancerWeightedNetwork) {
+		if(networkWeights == 1) {
+			System.out.println("Loading protein quantification data");
 			/* Load protein expression data */
-			Loader.loadProteinFoldChangeData(protein_expression_file, networkProteinList, testHer2vsTN, testHer2vsHR, testHRvsTN, runComputeCanada);
+			Loader.loadProteinFoldChangeData(protein_expression_file, networkProteinList, condition1, condition2);
 
 			/* Modify interaction weight based on protein expression */
 			Modifier.modifyInteractionWeight(networkProteinList, networkInteractionsList);
 		}
 
-		if(toComputeDistanceMatrix) {
+		File f = new File(distanceMatrixFile);
+		if(!f.exists() && !f.isDirectory()) {
 			/* Compute distance matrix using the list of proteins in the network and the list of known interactions in the network. */
+			System.out.println("Computing distance matrix");
 			DistanceMatrix.computeDistanceMatrix(networkInteractionsList, networkProteinList, distanceMatrixFile);
 		}
 
 		/* Load distance matrix (Note: it contains disconnected components) */ 
-		double[][] distanceMatrix = Loader.loadDistanceMatrix(distanceMatrixFile, networkProteinList, runComputeCanada);
+		System.out.println("Loading distance matrix");
+		double[][] distanceMatrix = Loader.loadDistanceMatrix(distanceMatrixFile, networkProteinList);
 
 		/* Determine which proteins are disconnected*/ 
 		boolean[] proteinsToKeep = Calculator.determineConnectedProteins(distanceMatrix);
@@ -230,74 +191,88 @@ public class Main {
 		/* Update proteins to keep in the network (ie. those that contribute to the most connected component) */
 		ArrayList<Protein> networkProteinsList3 = NetworkProteins.modifyNetworkProteinsList(networkProteinList, proteinsToKeep);
 
-		if(toUpdateDistanceMatrix) {
-			/* Update distance matrix to only include proteins that contribute to the most connected component of the graph */
-			DistanceMatrix.updateDistanceMatrix(proteinsToKeep, distanceMatrix, distanceMatrix2File);
-		}
-
-		/* Load distance matrix representing fully connected component */
-		double[][] distanceMatrix2 = Loader.loadDistanceMatrix(distanceMatrix2File, networkProteinsList3, runComputeCanada);
+		if(networkProteinList.size() != networkProteinsList3.size()) {
+			File f1 = new File(distanceMatrix2File);
+			if(!f1.exists() && !f1.isDirectory()) {
+				/* Update distance matrix to only include proteins that contribute to the most connected component of the graph */
+				System.out.println("Updating distance matrix");
+				DistanceMatrix.updateDistanceMatrix(proteinsToKeep, distanceMatrix, distanceMatrix2File);
+			}
+			/* Load distance matrix representing fully connected component */
+			System.out.println("Loading updated distance matrix");
+			distanceMatrix = Loader.loadDistanceMatrix(distanceMatrix2File, networkProteinsList3);
+		} 
 
 		/* Load annotations */ 
-		ArrayList<Annotation> annotationGoList = Loader.importAnnotationGo(annotationGO_inputFile, networkProteinsList3, runComputeCanada);
+		System.out.println("Loading annotations file");
+		ArrayList<Annotation> annotationGoList = Loader.importAnnotationGo(annotationGO_inputFile, networkProteinsList3);
+		System.out.println("Loaded annotations: " + annotationGoList.size() + "\n");
 
-		if(toMonteCarlo) {
+		File f4 = new File(distributionFile);
+		if(!f4.exists() && !f4.isDirectory()) {
 			/* Measure distributions for given number of proteins within the bounds for a given number of sampling */
-			Sampling sampling = new Sampling(annotationGoList, distanceMatrix2, weightedSampling);
-			sampling.computeMultipleDistributions(nProtToSampleLowerBound, nProtToSampleUpperBound, numOfTimesNetworkIsSampled);
+			System.out.println("Performing Monte Carlo Sampling procedure\n");
+			Sampling sampling = new Sampling(annotationGoList, distanceMatrix, samplingType);
+			sampling.computeMultipleDistributions(nProtToSampleLowerBound, nProtToSampleUpperBound, numOfTimesNetworkIsSampled, distributionFile);
 		}
 
-		if(testGoTerms) {		
-			ArrayList<Annotation> shuffled_goAnnotationList = new ArrayList<Annotation>();
-			if(toShuffle) {	
-				/* Shuffle proteins associated to annotations */
-				shuffled_goAnnotationList = Calculator.shuffleGoProtAssociations2(annotationGoList);
-				if (printShuffledGOList) {
-					
-					/* Export shuffled file to not repeat */ 
-					Exporter.printShuffledNetwork(shuffled_goAnnotationList, shuffledGOFile);
-				}
-			} else {
-				/* Load shuffled annotations */ 
-				Loader.loadShuffledGoAnnotations(shuffled_goAnnotationList, shuffledGOFile);
-			}
+		ArrayList<Annotation> shuffled_goAnnotationList = new ArrayList<Annotation>();
+		File f3 = new File(shuffledGOFile);
 
-			/* Initialize FdrCalculator object; compute clustering of proteins for all GO annotation */ 
-			FdrCalculator fdrCalculator = new FdrCalculator(annotationGoList, shuffled_goAnnotationList);
-			fdrCalculator.modifyGoAnnotationsWithTPD(distanceMatrix2);
-			
-			/* Compute mean and standard deviation from Monte Carlo Distribution file */ 
-			if(computeDistributionParams) {
-				fdrCalculator.computeNormalDistributionParameters(distributionFile, nProtToSampleLowerBound, nProtToSampleUpperBound, normalDistributionParametersFile);
-			}
-			
-			/* Assess the significance of the clustering measure */
-			double minimum_pval = 1; 
-			if(useNormalDistribution) {
-				minimum_pval = fdrCalculator.modifyGoAnnotationsWithPvalueFromNormalApproximation(normalDistributionParametersFile);
-			} else {
-				minimum_pval = Loader.setAnnotationPvaluesFromMonteCarloDistribution(distributionFile, nProtToSampleLowerBound, nProtToSampleUpperBound, annotationGoList, shuffled_goAnnotationList);
-			}
+		if(!f3.exists() && !f3.isDirectory()) {
+			/* Shuffle proteins associated to annotations */
+			System.out.println("Shuffling annotations");
+			shuffled_goAnnotationList = Calculator.shuffleGoProtAssociations2(annotationGoList);
 
-			/* Estimate the false discovery rate at various significant thresholds and apply monotonic transformations */ 
-			ArrayList<FalseDiscoveryRate> fdrs = fdrCalculator.computeFdr(minimum_pval);
-			fdrs = fdrCalculator.monotonicTransformationForFdr(fdrs);
+			/* Export shuffled file to not repeat */ 
+			System.out.println("Printing shuffled annotations\n");
+			Exporter.printShuffledNetwork(shuffled_goAnnotationList, shuffledGOFile);
 
-			Modifier.modifyClustersFdr(annotationGoList, fdrs);
-
-			/* Print stats summary for each tested GO annotation */
-			if (printSignificantGOterms) {
-				System.out.println("Print GO results"); 
-				Exporter.printGO_results(annotationGoList, shuffled_goAnnotationList, goExportFile);
-			}
-			
-			/* Print FDR calculated at various p-value thresholds mapping */ 
-			if (printFDRresults) {
-				System.out.println("Print FDR"); 
-				Exporter.testGoFDR(fdrs, fdrExportFile);
-			}
-
+		} else {
+			/* Load shuffled annotations */ 
+			Loader.loadShuffledGoAnnotations(shuffled_goAnnotationList, shuffledGOFile);
 		}
+
+		/* Initialize FdrCalculator object; compute clustering of proteins for all GO annotation */ 
+		FdrCalculator fdrCalculator = new FdrCalculator(annotationGoList, shuffled_goAnnotationList);
+		fdrCalculator.modifyGoAnnotationsWithTPD(distanceMatrix);
+
+		/* Compute mean and standard deviation from Monte Carlo Distribution file */ 
+		File f2 = new File(normalDistributionParametersFile);
+		if(!f2.exists() && !f2.isDirectory()) {
+			System.out.println("Loading Monte Carlo distribution\n");
+			fdrCalculator.computeNormalDistributionParameters(distributionFile, nProtToSampleLowerBound, nProtToSampleUpperBound, normalDistributionParametersFile);
+		}
+
+		/* Assess the significance of the clustering measure */
+		double minimum_pval = 1; 
+		System.out.println("Computing significance scores");
+		if(useNormalDistribution) {
+			minimum_pval = fdrCalculator.modifyGoAnnotationsWithPvalueFromNormalApproximation(normalDistributionParametersFile, numOfTimesNetworkIsSampled);
+		} else {
+			minimum_pval = Loader.setAnnotationPvaluesFromMonteCarloDistribution(distributionFile, nProtToSampleLowerBound, nProtToSampleUpperBound, annotationGoList, shuffled_goAnnotationList);
+		}
+
+		/* Estimate the false discovery rate at various significant thresholds and apply monotonic transformations */ 
+		System.out.println("Performing FDR estimation procedure");
+		ArrayList<FalseDiscoveryRate> fdrs = fdrCalculator.computeFdr(minimum_pval);
+		fdrs = fdrCalculator.monotonicTransformationForFdr(fdrs);
+
+		Modifier.modifyClustersFdr(annotationGoList, fdrs);
+
+		/* Print stats summary for each tested GO annotation */
+		System.out.println("Print GO results"); 
+		Exporter.printGO_results(annotationGoList, shuffled_goAnnotationList, goExportFile);
+
+		FormatOutput.printAnnotationDetails(annotationGoList, networkProteinsList3, fdrs, annotationGO_inputFile, goDetailsFile);
+
+
+		/* Print FDR calculated at various p-value thresholds mapping */ 
+
+		System.out.println("Print FDR"); 
+		Exporter.testGoFDR(fdrs, fdrExportFile);
+
+
 
 	} // close main
 

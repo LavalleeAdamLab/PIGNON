@@ -98,7 +98,7 @@ public class DistanceMatrix {
 			} 
 		}
 
-		System.out.println("Number proteins to keep : " + protCount);
+		//System.out.println("Number proteins to keep : " + protCount);
 
 		double[][] updatedDistanceMatrix = new double[protCount][protCount];
 

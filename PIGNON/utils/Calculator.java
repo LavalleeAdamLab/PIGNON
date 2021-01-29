@@ -48,7 +48,7 @@ public class Calculator {
         ArrayList<Double> values = new ArrayList<>();
         for (int idx: indices){
             // if value of the cell is not null, we add it to the values table
-            if (idx<dataLine.length && !dataLine[idx].equals("")) {
+            if (idx<dataLine.length && !dataLine[idx].equals("") && !dataLine[idx].equals("NA")) {
                 values.add(Double.parseDouble(dataLine[idx]));
             }
         }
@@ -160,21 +160,6 @@ public class Calculator {
         return (double) Math.round(distance * 100d) / 100d;
 
     }
-    /**
-     * @deprecated 
-     *  
-     * @param go_start
-     * @param go_stop
-     * @param numSampling
-     * @param annotation_goList
-     * @param distance_matrix
-     * @param weighted
-     */
-    public static void computeMultipleDistributions(int go_start, int go_stop, int numSampling, ArrayList<Annotation> annotation_goList, double[][] distance_matrix, boolean weighted) {
-        Sampling sampling = new Sampling(annotation_goList, distance_matrix, weighted);
-        sampling.computeMultipleDistributions(go_start, go_stop, numSampling);
-
-    } // end computeMultipleDistributions
 
     /**
      * Compute the p-value of a cluster from the previously generated probOfTPDmap
@@ -237,9 +222,9 @@ public class Calculator {
 
             goTerm_associationIntervalMap.put(annotation1.getName(), associationInterval);
 
-            for (int j = 0; j < annotation1.getGeneSymbols().size(); j++) {
+            for (int j = 0; j < annotation1.getProteinIds().size(); j++) {
 
-                Association association1 = new Association(annotation1.getName(), annotation1.getGeneSymbols().get(j), annotation1.getIdxProteinsList().get(j));
+                Association association1 = new Association(annotation1.getName(), annotation1.getProteinIds().get(j), annotation1.getIdxProteinsList().get(j));
                 goTerm_ProtAssociationList.add(association1);
             }
 
@@ -341,7 +326,7 @@ public class Calculator {
                 shuffledGoAnnotation.addProteinIdx(currentAssociation.getProteinIdx());
             }
 
-            ArrayList<String> geneSymbolsList = shuffledGoAnnotation.getGeneSymbols();
+            ArrayList<String> geneSymbolsList = shuffledGoAnnotation.getProteinIds();
             ArrayList<Integer> proteinIdxList = shuffledGoAnnotation.getIdxProteinsList();
 
             for (int h = 0; h < geneSymbolsList.size(); h++) {
@@ -414,13 +399,13 @@ public class Calculator {
 
             HashSet<String> goProteinsSet = new HashSet<String>();
 
-            for (int j = 0; j < annotation1.getGeneSymbols().size(); j++) {
+            for (int j = 0; j < annotation1.getProteinIds().size(); j++) {
 
                 // Association(String _goTerm, String _geneID, int _networkProteinIdx)
-                Association association1 = new Association(annotation1.getName(), annotation1.getGeneSymbols().get(j), annotation1.getIdxProteinsList().get(j));
+                Association association1 = new Association(annotation1.getName(), annotation1.getProteinIds().get(j), annotation1.getIdxProteinsList().get(j));
                 goTerm_ProtAssociationList.add(association1);
 
-                goProteinsSet.add(annotation1.getGeneSymbols().get(j));
+                goProteinsSet.add(annotation1.getProteinIds().get(j));
             }
 
             goTerm_associationMap.put(annotation1.getName(), goProteinsSet);

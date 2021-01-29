@@ -6,144 +6,48 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 import graph.Annotation;
-import graph.Interaction;
 import graph.Protein;
 
 public class Loader {
-	/***
-	 * @deprecated
-	 * Read BioGRID repository (from inputFile). Extract name of all possible interactions 
-	 * as well as their number of recurrence. Ensures that there are no repeat interactions.
-	 * Ensures that all proteins involved in interactions are human (homo sapiens; 9606) 
-	 ***/
-	public static ArrayList<Interaction> loadInteractionRepository(String inputRepositoryFile, boolean runOnComputeCanada) {
-
-
-		// To contain interaction name and ID, and number of occurence
-		HashMap<String, Integer> InteractionToNumber = new HashMap<String, Integer>();
-
-		try {
-			/* Read BioGrid ; get all possible human protein-protein interactions */
-
-			BufferedReader input = null;
-
-			if (runOnComputeCanada) {
-				InputStream in = Loader.class.getClassLoader().getResourceAsStream(inputRepositoryFile);
-				input = new BufferedReader(new InputStreamReader(in));
-			} else {
-				input = new BufferedReader(new FileReader(new File(inputRepositoryFile)));
-			}
-
-			String line = input.readLine(); // read first line
-			line = input.readLine(); // read second line
-
-			while (line != null) { // stops when there are no more lines in file (in)
-
-				String[] col = line.split("\t"); // split line by tabs; obtain individual columns
-
-				/* Do not include protein interactions that involve non human proteins. 
-				 * The code for homo sapiens is 9606 */
-
-				int species1 = Integer.parseInt(col[15]); // get species of prot1 
-				int species2 = Integer.parseInt(col[16]); // get species of prot2
-
-				if (species1 == 9606 && species2 == 9606) {
-
-					String interactor1 = col[7]; // get name of prot1
-					String interactor2 = col[8]; // get name of prot2
-
-					String interactorID1 = col[1]; // get ID of prot1
-					String interactorID2 = col[2]; // get ID of prot2
-
-					// establish the two possible interaction combinations 
-					String interaction1 = interactor1 + "\t" + interactor2 + "\t" + interactorID1 + "\t"
-							+ interactorID2;
-					String interaction2 = interactor2 + "\t" + interactor1 + "\t" + interactorID2 + "\t"
-							+ interactorID1;
-
-					/* Look through existing list of interactions to see if interaction1 or interaction2 exists
-					 * if it the interaction is already present we increment the numberOfOccurence, otherwise the 
-					 * interaction is initialized */
-					if (InteractionToNumber.containsKey(interaction1)) {
-						int numberOfOccurences = InteractionToNumber.get(interaction1);
-						InteractionToNumber.put(interaction1, numberOfOccurences + 1);
-					} else if (InteractionToNumber.containsKey(interaction2)) {
-						int numberOfOccurences = InteractionToNumber.get(interaction2);
-						InteractionToNumber.put(interaction2, numberOfOccurences + 1);
-					} else {
-						InteractionToNumber.put(interaction1, 1); // initialize occurrence to 1
-					}
-				}
-				line = input.readLine(); // read next line
-			}
-			input.close(); // close BufferedReader
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-
-		/* Store interactions as objects of type Interaction */
-		ArrayList<Interaction> interaction_list = new ArrayList<Interaction>(); // new ArrayList of class Interaction
-
-		for (String inter : InteractionToNumber.keySet()) {
-
-			String[] interaction_identifier = inter.split("\t"); // split interaction identifier by tab
-
-			Interaction inter1 = new Interaction(interaction_identifier[0], interaction_identifier[1], Integer.parseInt(interaction_identifier[2]),
-					Integer.parseInt(interaction_identifier[3])); // initialize new interaction object
-
-			interaction_list.add(inter1); // store interaction object in arrayList
-		}
-		return interaction_list;
-	}
 
 	/**
+	 * Compute Fold change between Her2 and Triple Negative patients from the index list of each group and the file path. 
+	 * File contains protein expression.
+	 * 
 	 * @param foldChangeDataFile file with breast cancer dataset
 	 * @param proteinsInNetworkList list of proteins in network
 	 * @param testHer2vsTN
 	 * @param runOnComputeCanada
 	 */
-	public static void loadProteinFoldChangeData(String foldChangeDataFile, ArrayList<Protein> proteinsInNetworkList, boolean testHer2vsTN, boolean testHer2vsHR, boolean testHRvsTN, boolean runOnComputeCanada) {
-		/* Compute Fold change between Her2 and Triple Negative patients from the index
-		 * list of each group and the file path. File contains protein expression.*/
+	public static void loadProteinFoldChangeData(String foldChangeDataFile, ArrayList<Protein> proteinsInNetworkList, String condition1, String condition2) {
+
 
 		// InteractionToNumber will contain the number of each possible interaction
 		HashMap<String, Double> foldChangeMap = new HashMap<String, Double>();
 
 		try {
-			BufferedReader input = null;
 
-			if (runOnComputeCanada) {
-				InputStream in = Loader.class.getClassLoader().getResourceAsStream(foldChangeDataFile);
-				input = new BufferedReader(new InputStreamReader(in));
-			} else {
-				input = new BufferedReader(new FileReader(new File(foldChangeDataFile)));
-			}
+			InputStream in = new FileInputStream(new File(foldChangeDataFile));
+			BufferedReader input = new BufferedReader(new InputStreamReader(in));
 
-			String line = input.readLine();	// read first line
-			line = input.readLine();
-			line = input.readLine();
+			String line = input.readLine();	// header which contains Sample names
+
 			String[] col = line.split("\t");
 
-			ArrayList<Integer> her2Indexes = new ArrayList<Integer>();
-			ArrayList<Integer> tnIndexes = new ArrayList<Integer>();
-			ArrayList<Integer> erprIndexes = new ArrayList<Integer>();
+			ArrayList<Integer> condition1idx = new ArrayList<Integer>();
+			ArrayList<Integer> condition2idx = new ArrayList<Integer>();
 
-			for(int i=0; i<col.length; i++) {
-				if(col[i].matches("Her2(.*)")) {
-					her2Indexes.add(i);
-				} else if(col[i].matches("TN(.*)")) {
-					tnIndexes.add(i);
-				} else if(col[i].matches("ERPR(.*)")) {
-					erprIndexes.add(i);
-				}
+			for(int i=1; i<col.length; i++) {
+				if(col[i].matches(condition1 + "(.*)")) {
+					condition1idx.add(i);
+				} else if(col[i].matches(condition2 +"(.*)")) {
+					condition2idx.add(i);
+				} 
 			}
 
 			// read next line
 			line = input.readLine();
-			// TODO for testing
-			//			int missed_rows = 0;
-			//			int total_rows = 0;
-			//TODO for testing
+
 			while (line != null) {
 
 				// split new line in string array
@@ -152,18 +56,11 @@ public class Loader {
 				try {
 					double averageCondition1 = 1;
 					double averageCondition2 = 1;
-					
-					if(testHer2vsTN) {
-						averageCondition1 = Calculator.computeAvg(col, her2Indexes);
-						averageCondition2 = Calculator.computeAvg(col, tnIndexes);
-					} else if(testHer2vsHR) {
-						averageCondition1 = Calculator.computeAvg(col, her2Indexes);
-						averageCondition2 = Calculator.computeAvg(col, erprIndexes);
-					} else if(testHRvsTN) {
-						averageCondition1 = Calculator.computeAvg(col, erprIndexes);
-						averageCondition2 = Calculator.computeAvg(col, tnIndexes);
-					}
-					
+
+					averageCondition1 = Calculator.computeAvg(col, condition1idx);
+					averageCondition2 = Calculator.computeAvg(col, condition2idx);
+
+
 					// expression = fold change for Her2
 					double foldChange = averageCondition1 / averageCondition2;
 
@@ -171,8 +68,8 @@ public class Loader {
 					// (FoldChange)
 
 					if(!Double.isNaN(foldChange)){
-						if(col.length > 132 && col[132] != null) {
-							foldChangeMap.put(col[132], foldChange);
+						if(col[0] != null) {
+							foldChangeMap.put(col[0], foldChange);
 						}
 					}
 
@@ -208,7 +105,7 @@ public class Loader {
 		+"; represents " +(countprot/(double)foldChangeMap.size())); */
 	}
 
-	public static double[][] loadDistanceMatrix(String distance_matrixFile, ArrayList<Protein> ProteinList, boolean runComputeCanada) {
+	public static double[][] loadDistanceMatrix(String distance_matrixFile, ArrayList<Protein> ProteinList) {
 		/* Import distance matrix from text file, it's dimensions are based on the size of the 
 		 * proteinNetwork List initially used to build the distance Matrix file */
 
@@ -216,14 +113,8 @@ public class Loader {
 
 		try {
 
-			BufferedReader input;
-
-			if(runComputeCanada) {
-				InputStream in = Loader.class.getClassLoader().getResourceAsStream(distance_matrixFile);
-				input = new BufferedReader(new InputStreamReader(in));
-			} else {
-				input = new BufferedReader(new FileReader(new File(distance_matrixFile)));
-			}
+			InputStream in = new FileInputStream(new File(distance_matrixFile));				
+			BufferedReader input = new BufferedReader(new InputStreamReader(in));
 
 			String line = input.readLine(); // read first line
 
@@ -251,7 +142,7 @@ public class Loader {
 		return distanceMatrix;
 	} // end import distance matrix
 
-	public static ArrayList<Annotation> importAnnotationGo(String inputFile, ArrayList<Protein> networkProteinList, boolean runComputeCanada) {
+	public static ArrayList<Annotation> importAnnotationGo(String inputFile, ArrayList<Protein> networkProteinList) {
 		/* Maps protein IDs (values) in the form of a string array with it's
 		 * corresponding GO ID (key) from given annotation GO file. Only keeps proteins found in the network
 		 */
@@ -260,14 +151,9 @@ public class Loader {
 		ArrayList<Annotation> goTermsList = new ArrayList<Annotation>();
 
 		try {
-			BufferedReader input;
 
-			if(runComputeCanada) {
-				InputStream in = Loader.class.getClassLoader().getResourceAsStream(inputFile);
-				input = new BufferedReader(new InputStreamReader(in));
-			} else {
-				input = new BufferedReader(new FileReader(new File(inputFile)));
-			}
+			InputStream in = new FileInputStream(new File(inputFile));	
+			BufferedReader input = new BufferedReader(new InputStreamReader(in));
 
 			String line = input.readLine(); // Skip header
 			line = input.readLine(); // read first line
@@ -346,7 +232,8 @@ public class Loader {
 
 
 		try {
-			BufferedReader input = new BufferedReader(new FileReader(new File(distributionInputFile)));
+			InputStream in = new FileInputStream(new File(distributionInputFile));
+			BufferedReader input = new BufferedReader(new InputStreamReader(in));
 
 			String line = input.readLine();
 			HashMap<Double, Double> distributionMap = new HashMap<Double, Double>(); /* Store distribution information for nProt in a hash map */
@@ -431,9 +318,12 @@ public class Loader {
 
 		/* Initialize array to contain normal distribution parameters {mean, standard deviation} */
 		double[][] normalDistributionParameters = new double[nProtToSampleUpperBound-nProtToSampleLowerBound][2];
-		int countLine =1;
+		//int countLine =1;
 		try {
-			BufferedReader input = new BufferedReader(new FileReader(new File(distributionInputFile)));
+
+			InputStream in = new FileInputStream(new File(distributionInputFile));	
+			BufferedReader input = new BufferedReader(new InputStreamReader(in));
+
 			HashMap<Double, Double> distributionMap = new HashMap<Double, Double>();; /* Store distribution information for nProt in a hash map */
 			String line = input.readLine();
 			int nProt = 0;
@@ -447,6 +337,14 @@ public class Loader {
 				if(line.contains("TPD")) {
 					String[] splitTPD = col[3].split("\\)");
 					nProt = Integer.parseInt(splitTPD[0]);
+
+					if(nProt%10 == 0) {
+						System.out.print(nProt + "|");
+					} 
+					if(nProt%100 == 0){
+						System.out.println();
+					}
+
 					distributionMap = new HashMap<Double, Double>();
 
 					// NEED to take into account that some distributions aren't computed and will have a frequency of 0.
@@ -460,7 +358,7 @@ public class Loader {
 					}
 				} else {
 					/* Import Frequency map */
-					
+
 					double tpd = Double.parseDouble(col[0]);
 					double freq = Double.parseDouble(col[1]);
 
@@ -468,10 +366,10 @@ public class Loader {
 					distributionMap.put(tpd, freq);
 				}
 				line = input.readLine();
-				countLine++;
-	
-				
-				
+				//countLine++;
+
+
+
 			}	
 
 			NormalApproximation.exportNormalDistributionParameters(normalDistributionParameters, normalDistributionParametersFile, nProtToSampleLowerBound);

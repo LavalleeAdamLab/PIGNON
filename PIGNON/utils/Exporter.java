@@ -93,7 +93,7 @@ public class Exporter {
                 out.write(shuffledGo.getName() + "\t");
 
                 for (int prot = 0; prot < shuffledGo.getNumberOfProteins(); prot++) {
-                    out.write(shuffledGo.getGeneSymbols().get(prot) + "|");
+                    out.write(shuffledGo.getProteinIds().get(prot) + "|");
                 }
                 out.write("\t");
 
