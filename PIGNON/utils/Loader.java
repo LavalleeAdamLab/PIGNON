@@ -10,101 +10,6 @@ import graph.Protein;
 
 public class Loader {
 
-	/**
-	 * Compute Fold change between Her2 and Triple Negative patients from the index list of each group and the file path. 
-	 * File contains protein expression.
-	 * 
-	 * @param foldChangeDataFile file with breast cancer dataset
-	 * @param proteinsInNetworkList list of proteins in network
-	 * @param testHer2vsTN
-	 * @param runOnComputeCanada
-	 */
-	public static void loadProteinFoldChangeData(String foldChangeDataFile, ArrayList<Protein> proteinsInNetworkList, String condition1, String condition2) {
-
-
-		// InteractionToNumber will contain the number of each possible interaction
-		HashMap<String, Double> foldChangeMap = new HashMap<String, Double>();
-
-		try {
-
-			InputStream in = new FileInputStream(new File(foldChangeDataFile));
-			BufferedReader input = new BufferedReader(new InputStreamReader(in));
-
-			String line = input.readLine();	// header which contains Sample names
-
-			String[] col = line.split("\t");
-
-			ArrayList<Integer> condition1idx = new ArrayList<Integer>();
-			ArrayList<Integer> condition2idx = new ArrayList<Integer>();
-
-			for(int i=1; i<col.length; i++) {
-				if(col[i].matches(condition1 + "(.*)")) {
-					condition1idx.add(i);
-				} else if(col[i].matches(condition2 +"(.*)")) {
-					condition2idx.add(i);
-				} 
-			}
-
-			// read next line
-			line = input.readLine();
-
-			while (line != null) {
-
-				// split new line in string array
-				//				total_rows++;
-				col = line.split("\t");
-				try {
-					double averageCondition1 = 1;
-					double averageCondition2 = 1;
-
-					averageCondition1 = Calculator.computeAvg(col, condition1idx);
-					averageCondition2 = Calculator.computeAvg(col, condition2idx);
-
-
-					// expression = fold change for Her2
-					double foldChange = averageCondition1 / averageCondition2;
-
-					// store protein name(col[0]) and fold change (expression ratio) in HashMap
-					// (FoldChange)
-
-					if(!Double.isNaN(foldChange)){
-						if(col[0] != null) {
-							foldChangeMap.put(col[0], foldChange);
-						}
-					}
-
-
-					// next line
-				} catch (IllegalStateException ex){
-					//					missed_rows++;
-				}
-				line = input.readLine();
-			}
-			input.close();
-			//System.out.println(String.format("Total rows: %s, missed rows: %s", total_rows, missed_rows));
-
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-
-		//int countprot = 0; // initialize counter to check for proteins found in the network from the project data
-
-		/* Extract info from fold change map to be stored in Protein object */
-		for (int i = 0; i < proteinsInNetworkList.size(); i++) {	
-
-			String protein_name = proteinsInNetworkList.get(i).getProteinName(); // get protein name
-
-			// if protein is found in the fold change map, store fold change in Protein object
-			if (foldChangeMap.containsKey(protein_name)) {
-				double fold_change = foldChangeMap.get(protein_name);
-				proteinsInNetworkList.get(i).setFoldChange(fold_change);
-				//countprot++;
-			}
-		}
-		/*	System.out.println("proteins from project found in network " +countprot +"; total proteins in project data " +foldChangeMap.size()
-		+"; represents " +(countprot/(double)foldChangeMap.size())); */
-	}
-
 	public static double[][] loadDistanceMatrix(String distance_matrixFile, ArrayList<Protein> ProteinList) {
 		/* Import distance matrix from text file, it's dimensions are based on the size of the 
 		 * proteinNetwork List initially used to build the distance Matrix file */
@@ -142,7 +47,7 @@ public class Loader {
 		return distanceMatrix;
 	} // end import distance matrix
 
-	public static ArrayList<Annotation> importAnnotationGo(String inputFile, ArrayList<Protein> networkProteinList) {
+	public static ArrayList<Annotation> importAnnotationGo(String inputFile, ArrayList<Protein> networkProteinList, int lowerBound, int upperBound) {
 		/* Maps protein IDs (values) in the form of a string array with it's
 		 * corresponding GO ID (key) from given annotation GO file. Only keeps proteins found in the network
 		 */
@@ -199,16 +104,19 @@ public class Loader {
 					}
 				}
 
-				/* Check prevalence of proteins from annotation GO in network */
-				Double goPrevalence = goProteinsInNetworkList.size() / (double) (proteinIDList.length);
+				/* Check go annotation conforms to the size of annotations to measure */ 
+				if(goProteinsInNetworkList.size() >= lowerBound && goProteinsInNetworkList.size() <= upperBound) {
+					/* Check prevalence of proteins from annotation GO in network */
+					Double goPrevalence = goProteinsInNetworkList.size() / (double) (proteinIDList.length);
+					if (goPrevalence > 0.5 && goProteinsInNetworkList.size() > 2 ) {
 
-				if (goPrevalence > 0.5 && goProteinsInNetworkList.size() > 2 && goProteinsInNetworkList.size() < 1000) {
+						Annotation goAnnotation = new Annotation(term, goProteinsInNetworkList, goSymbolsInNetworkList, idxProteinsInNetworkList);
 
-					Annotation goAnnotation = new Annotation(term, goProteinsInNetworkList, goSymbolsInNetworkList, idxProteinsInNetworkList);
+						goTermsList.add(goAnnotation);
 
-					goTermsList.add(goAnnotation);
-
+					}
 				}
+				
 				// goCount++;
 				line = input.readLine(); // next line
 			}
@@ -329,10 +237,7 @@ public class Loader {
 			int nProt = 0;
 			while(line!=null) {
 
-
 				String[] col = line.split("\\s+");
-
-
 
 				if(line.contains("TPD")) {
 					String[] splitTPD = col[3].split("\\)");

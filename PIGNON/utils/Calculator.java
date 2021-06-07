@@ -414,7 +414,7 @@ public class Calculator {
         /*****************
          * Time concern!
          *****************/
-
+        System.out.println("number of goterm - protein associations: " + goTerm_associationMap.size());
         int numSwaps = 1000 * goTerm_ProtAssociationList.size();
 
         for (int i = 0; i < numSwaps; i++) {

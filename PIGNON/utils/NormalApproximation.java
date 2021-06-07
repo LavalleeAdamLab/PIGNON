@@ -52,7 +52,8 @@ public class NormalApproximation {
 		return sd;
 	}
 
-	public static void printNormalDistribution(NormalDistribution nd, int nProteins, HashMap<Double, Double> distributionMap) {
+	@SuppressWarnings("unused")
+	private static void printNormalDistribution(NormalDistribution nd, int nProteins, HashMap<Double, Double> distributionMap) {
 
 		ArrayList<Integer> nProtsToTest = new ArrayList<Integer>(
 				Arrays.asList(5, 10, 50, 100, 250));

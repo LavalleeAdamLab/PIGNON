@@ -53,13 +53,24 @@ public class Sampling {
 	 * @param nProtToSampleUpperBound		end of the range of proteins that will be sampled
 	 * @param numOfTimesNetworkIsSampled 	number of times to calculate the distribution for each amount of proteins
 	 */
-	public void computeMultipleDistributions(int nProtToSampleLowerBound, int nProtToSampleUpperBound, int numOfTimesNetworkIsSampled, String mcDistFile) {
-		BufferedWriter out;
-		try {
-			out = new BufferedWriter(new FileWriter(new File(mcDistFile)));
+	public void computeMultipleDistributions(int nProtToSampleLowerBound, int nProtToSampleUpperBound, int numOfTimesNetworkIsSampled, String mcDistFilePrefix) {
 
-			for (int n = nProtToSampleLowerBound; n <= nProtToSampleUpperBound; n++) { // range of proteins to sample
 
+		for (int n = nProtToSampleLowerBound; n <= nProtToSampleUpperBound; n++) { // range of proteins to sample
+
+			if(n%100 ==0) {
+				System.out.println();
+			}
+			
+			if(n%10 ==0) {
+				System.out.print(n + ".");
+			}
+			
+			
+			String mcDistFile = mcDistFilePrefix + n;
+			
+			File f4 = new File(mcDistFile);
+			if(!f4.exists() && !f4.isDirectory()) {
 				/* Check if a GO term is associated to the number of proteins to be sampled in the network
 				 * Prevents the need of computing a distribution that will not be used. */ 
 				boolean numberOfAssociatedProteinsExists = false;
@@ -82,22 +93,28 @@ public class Sampling {
 				if (numberOfAssociatedProteinsExists) {
 					HashMap<Double, Double> distribution = compute_distributionTPD(n, numOfTimesNetworkIsSampled);
 
-					out.write("TPD (n = " + n + ")" + "\t" + "Frequency" + "\n");
-					for (double dist : distribution.keySet()) {
-						out.write(dist + "\t" + distribution.get(dist) + "\n");
-						out.flush();
-					}
-				} else {
-					out.write("TPD (n = " + n + ") Not found\n");
-					out.flush();
-				}
-				out.write("\n");
-				out.flush();
-			}
-			out.close();
 
-		} catch (IOException e) {
-			e.printStackTrace();
+					BufferedWriter out;
+					try {
+						out = new BufferedWriter(new FileWriter(new File(mcDistFile)));
+
+						out.write("TPD (n = " + n + ")" + "\t" + "Frequency" + "\n");
+						for (double dist : distribution.keySet()) {
+							out.write(dist + "\t" + distribution.get(dist) + "\n");
+							out.flush();
+						}
+
+						out.write("\n");
+						out.flush();
+
+						out.close();
+
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+
+				}
+			}
 		}
 	}
 	/**

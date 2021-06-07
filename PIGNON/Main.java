@@ -54,7 +54,7 @@ public class Main {
 		 *  TO UPDATE: 
 		 *  - Format input file
 		 ***/
-	
+
 		/* Load Java properties file which contains parameters for running of the tool */
 		System.out.println("Loading parameters file \n");
 		Properties params = new Properties();
@@ -67,37 +67,44 @@ public class Main {
 		int nProtToSampleUpperBound = Integer.parseInt(params.getProperty("upperBound").replaceAll("\\s+",""));				// Upper limit of number of proteins sampled
 		int numOfTimesNetworkIsSampled = Integer.parseInt(params.getProperty("numOfIterations").replaceAll("\\s+",""));		// Number of times the network is sampled during Monte Carlo Method
 
-		int networkWeights = Integer.parseInt(params.getProperty("networkWeights").replaceAll("\\s+",""));		// weither to use protein expression weights or not
+		int networkWeights = Integer.parseInt(params.getProperty("networkWeights").replaceAll("\\s+","")); // weither to use protein expression weights or not
+		int weightsType = Integer.parseInt(params.getProperty("weightsType").replaceAll("\\s+", ""));
 		int networkType = Integer.parseInt(params.getProperty("networkType").replaceAll("\\s+",""));			// specify use of BioGRID or String network
 		String taxonomyID = params.getProperty("taxonomyID").replaceAll("\\s+", "");
-		
+
 		int samplingType = Integer.parseInt(params.getProperty("samplingType").replace("\\s+", ""));
-		
+
 		String projectName = params.getProperty("project_name");	// Specify project name
-		
+
 		/* UPDATE working directory */ 
 		String working_directory = params.getProperty("working_directory");
-		
+
 		/* Create directory for IO files ands output files */ 
 		File directory = new File(working_directory + "/IO_files");
-	    if (! directory.exists()){
-	    	System.out.println("creating IO_files directory");
-	        directory.mkdir();
-	    }
-	    
+		if (! directory.exists()){
+			System.out.println("creating IO_files directory");
+			directory.mkdir();
+		}
+
+		File directory3 = new File(working_directory + "/mcDistribution");
+		if (! directory3.exists()){
+			System.out.println("creating mcDist directory\n");
+			directory3.mkdir();
+		}
+
 		File directory2 = new File(working_directory + "/output_files");
-	    if (! directory2.exists()){
-	    	System.out.println("creating output_files directory\n");
-	        directory2.mkdir();
-	    }
+		if (! directory2.exists()){
+			System.out.println("creating output_files directory\n");
+			directory2.mkdir();
+		}
 
 		/* input files */
 		String interactionNetwork_inputFile = working_directory+ params.getProperty("protein_interaction_repository").replaceAll("\\s+", "");
 		String ensembleToEntrezIdMap_inputFile = working_directory + params.getProperty("ensembleIdToEntrezIdFile").replaceAll("\\s+", "");		// required for String network
 		String protein_expression_file = working_directory+ params.getProperty("protein_expression_data").replaceAll("\\s+", "");
 		String annotationGO_inputFile = working_directory + params.getProperty("gene_ontology_file").replaceAll("\\s+", "");
-		String shuffledGOFile = working_directory +"IO_files/" +"shuffled_gene_ontologies.txt";
-		
+		String shuffledGOFile = working_directory +"IO_files/" +"shuffled_gene_ontologies_n" + nProtToSampleLowerBound + "_" + nProtToSampleLowerBound + ".txt";
+
 		/* Specify network type name for output file writing */ 
 		String ppiNetwork = "";
 		switch(networkType) {
@@ -105,8 +112,10 @@ public class Main {
 			ppiNetwork = "BioGRID";
 			break;
 		case 1: 
-			ppiNetwork = "String";
+			ppiNetwork = "STRINGdetailed";
 			break;
+		case 2: 
+			ppiNetwork = "STRING";
 		}
 
 		String samplingName = "";
@@ -118,7 +127,7 @@ public class Main {
 			samplingName = "weightedSampling";
 			break;
 		}
-		
+
 		String networkWeighted = "";
 		switch(networkWeights) {
 		case 0 :
@@ -128,14 +137,14 @@ public class Main {
 			networkWeighted = "weighted";
 			break;
 		}
-		
+
 		/* intermediate files */
 		String distanceMatrixFile = working_directory + "IO_files/" +projectName + "_" + ppiNetwork + "_DistanceMatrix.txt";
 		String distanceMatrix2File = working_directory + "IO_files/" + projectName + "_" + ppiNetwork + "_DistanceMatrix_FullConnected.txt";
 
-		String distributionFile = working_directory + "IO_files/" + projectName + "_" + ppiNetwork + "_" + samplingName + "_s" + numOfTimesNetworkIsSampled + "_" +
-				nProtToSampleLowerBound + "_" + nProtToSampleUpperBound + ".txt";
-
+		
+		
+		String distributionFilePrefix = working_directory + "mcDistribution/" + projectName + "_" + ppiNetwork + "_" + samplingName + "_s" + numOfTimesNetworkIsSampled + "_n";
 		String normalDistributionParametersFile = working_directory + "IO_files/" + projectName + "_" + ppiNetwork + "_" + samplingName + "_s" + numOfTimesNetworkIsSampled+"_normalDistributionParams.txt";
 
 		/* output files  */
@@ -145,32 +154,38 @@ public class Main {
 		String fdrExportFile = working_directory + "output_files/" + sdf.format(timestamp) + projectName + "_" + ppiNetwork + "_" + samplingName + "_MonoTransf_FDRvPval_s" + numOfTimesNetworkIsSampled + ".txt";
 		String goExportFile = working_directory + "output_files/" + sdf.format(timestamp) + projectName + "_" + ppiNetwork +  "_" + samplingName + "_SummaryGoTerms_s" + numOfTimesNetworkIsSampled + ".txt";
 		String goDetailsFile = working_directory + "output_files/" + sdf.format(timestamp) + projectName + "_" + ppiNetwork + "_" + samplingName + "_DetailedGoTerms_s" + numOfTimesNetworkIsSampled + ".txt";;
-		
+
 		System.out.println("Running PIGNON job: " + projectName + "\n" + "PPI network: " + ppiNetwork + " is " + networkWeighted + " with quantification data");
 		if(networkWeights == 1) {
 			System.out.println("condition1 = " + condition1 + "| condition 2 = " + condition2);
 		}
 		System.out.println("Null model using " + samplingName + " for annotations of size " + nProtToSampleLowerBound + " - " + nProtToSampleUpperBound + " with " + numOfTimesNetworkIsSampled + " sampling\n");
 		//String mclGraphFile = working_directory + "output_files/unweightedMCLgraph.txt";
-		//String proteinListFile = working_directory + "output_files/2020.10.15.proteinsInNetworkList_wOverConnectedProteins.txt";
+		//String proteinListFile = working_directory + "output_files/proteinsInBioGRIDNetworkList.txt";
 		//		String nInteractionsPerProtFile = "/Users/Rachel/eclipse-files/network2.0/output_files/proteins.txt";
-
 
 		/* Read PPI repository. Extract all possible interactions between proteins and store in Interaction object */
 		System.out.println("Loading interaction repository");
-		ArrayList<Interaction> networkInteractionsList = NetworkInteractionsLoader.importInteractionNetwork(interactionNetwork_inputFile, networkType, ensembleToEntrezIdMap_inputFile, removeOverlyConnectedProteins, numOfExcessInteractions, taxonomyID);
+		ArrayList<Interaction> networkInteractionsList = NetworkInteractionsLoader.importInteractionNetwork(interactionNetwork_inputFile, networkType, ensembleToEntrezIdMap_inputFile, removeOverlyConnectedProteins, numOfExcessInteractions, taxonomyID, Integer.parseInt(params.getProperty("combinedScore", "400").replaceAll("//s+", "")));
 		System.out.println("number of interactions: " + networkInteractionsList.size());
 
 		/* Extract all proteins in the network (ie. all proteins within the interaction file) */
 		ArrayList<Protein> networkProteinList = NetworkProteins.getProteinsInNetwork(networkInteractionsList);
 		System.out.println("Number of proteins: " + networkProteinList.size() + "\n");
-
 		if(networkWeights == 1) {
 			System.out.println("Loading protein quantification data");
-			/* Load protein expression data */
-			Loader.loadProteinFoldChangeData(protein_expression_file, networkProteinList, condition1, condition2);
-
+			switch (weightsType){
+			case 0: 
+				/* Load protein expression data from individual conditions */
+				WeightInteractions.loadProteinExpressionDataAccrossSamples(protein_expression_file, networkProteinList, condition1, condition2);
+				break;
+			case 1:
+				/* Load protein expression data from fold-change */
+				WeightInteractions.loadFoldChangeData(protein_expression_file, networkProteinList);
+				break;
+			}
 			/* Modify interaction weight based on protein expression */
+			System.out.println("Modifying interacton weights from quant data");
 			Modifier.modifyInteractionWeight(networkProteinList, networkInteractionsList);
 		}
 
@@ -205,16 +220,8 @@ public class Main {
 
 		/* Load annotations */ 
 		System.out.println("Loading annotations file");
-		ArrayList<Annotation> annotationGoList = Loader.importAnnotationGo(annotationGO_inputFile, networkProteinsList3);
+		ArrayList<Annotation> annotationGoList = Loader.importAnnotationGo(annotationGO_inputFile, networkProteinsList3, nProtToSampleLowerBound, nProtToSampleUpperBound);
 		System.out.println("Loaded annotations: " + annotationGoList.size() + "\n");
-
-		File f4 = new File(distributionFile);
-		if(!f4.exists() && !f4.isDirectory()) {
-			/* Measure distributions for given number of proteins within the bounds for a given number of sampling */
-			System.out.println("Performing Monte Carlo Sampling procedure\n");
-			Sampling sampling = new Sampling(annotationGoList, distanceMatrix, samplingType);
-			sampling.computeMultipleDistributions(nProtToSampleLowerBound, nProtToSampleUpperBound, numOfTimesNetworkIsSampled, distributionFile);
-		}
 
 		ArrayList<Annotation> shuffled_goAnnotationList = new ArrayList<Annotation>();
 		File f3 = new File(shuffledGOFile);
@@ -230,8 +237,14 @@ public class Main {
 
 		} else {
 			/* Load shuffled annotations */ 
+			System.out.println("Loading shuffled annotations");
 			Loader.loadShuffledGoAnnotations(shuffled_goAnnotationList, shuffledGOFile);
 		}
+
+		// Measure distributions for given number of proteins within the bounds for a given number of sampling 
+		System.out.println("Performing Monte Carlo Sampling procedure\n");
+		Sampling sampling = new Sampling(annotationGoList, distanceMatrix, samplingType);
+		sampling.computeMultipleDistributions(nProtToSampleLowerBound, nProtToSampleUpperBound, numOfTimesNetworkIsSampled, distributionFilePrefix);
 
 		/* Initialize FdrCalculator object; compute clustering of proteins for all GO annotation */ 
 		FdrCalculator fdrCalculator = new FdrCalculator(annotationGoList, shuffled_goAnnotationList);
@@ -240,8 +253,8 @@ public class Main {
 		/* Compute mean and standard deviation from Monte Carlo Distribution file */ 
 		File f2 = new File(normalDistributionParametersFile);
 		if(!f2.exists() && !f2.isDirectory()) {
-			System.out.println("Loading Monte Carlo distribution\n");
-			fdrCalculator.computeNormalDistributionParameters(distributionFile, nProtToSampleLowerBound, nProtToSampleUpperBound, normalDistributionParametersFile);
+			System.out.println("Approximating normal distribution parameters from Monte Carlo distribution\n");
+			ApproximateNormalDistribuiton.getNormalDistributionParams(distributionFilePrefix, nProtToSampleLowerBound, nProtToSampleUpperBound, numOfTimesNetworkIsSampled, normalDistributionParametersFile);
 		}
 
 		/* Assess the significance of the clustering measure */
@@ -250,7 +263,7 @@ public class Main {
 		if(useNormalDistribution) {
 			minimum_pval = fdrCalculator.modifyGoAnnotationsWithPvalueFromNormalApproximation(normalDistributionParametersFile, numOfTimesNetworkIsSampled);
 		} else {
-			minimum_pval = Loader.setAnnotationPvaluesFromMonteCarloDistribution(distributionFile, nProtToSampleLowerBound, nProtToSampleUpperBound, annotationGoList, shuffled_goAnnotationList);
+			minimum_pval = Loader.setAnnotationPvaluesFromMonteCarloDistribution(distributionFilePrefix, nProtToSampleLowerBound, nProtToSampleUpperBound, annotationGoList, shuffled_goAnnotationList);
 		}
 
 		/* Estimate the false discovery rate at various significant thresholds and apply monotonic transformations */ 
@@ -263,12 +276,9 @@ public class Main {
 		/* Print stats summary for each tested GO annotation */
 		System.out.println("Print GO results"); 
 		Exporter.printGO_results(annotationGoList, shuffled_goAnnotationList, goExportFile);
-
 		FormatOutput.printAnnotationDetails(annotationGoList, networkProteinsList3, fdrs, annotationGO_inputFile, goDetailsFile);
 
-
 		/* Print FDR calculated at various p-value thresholds mapping */ 
-
 		System.out.println("Print FDR"); 
 		Exporter.testGoFDR(fdrs, fdrExportFile);
 

@@ -55,9 +55,14 @@ public class DistanceMatrix {
 		/* Implement the floyd-warshall algorithm */
 		for (int k = 0; k < distance_matrix.length; k++) {
 			
-			if(k%100 == 0) {
-				System.out.println("k = " + k);
+			if(k%1000 == 0) {
+				System.out.println("k = ");
 			}
+			
+			if(k%100 == 0) {
+				System.out.print(k + ".");
+			}
+			
 			
 			for (int i = 0; i < distance_matrix.length; i++) {
 				for (int j = 0; j < distance_matrix.length; j++) {
@@ -68,6 +73,7 @@ public class DistanceMatrix {
 			}
 		}
 
+		System.out.println("Done");
 		//Print distance matrix
 		try {
 			BufferedWriter o = new BufferedWriter(new FileWriter(outputFile));
@@ -75,6 +81,7 @@ public class DistanceMatrix {
 			for (int i = 0; i < distance_matrix.length; i++) {
 				for (int j = 0; j < distance_matrix.length; j++) {
 					o.write(distance_matrix[i][j] + "\t");
+					o.flush();
 				}
 				o.write("\n");
 				o.flush();

@@ -41,25 +41,35 @@ public class FormatOutput {
 				String[] col = line.split("\t");
 
 				if(annotationIdxMap.containsKey(col[0])) {
+					/* get annotation */
 					int annotationIdx = annotationIdxMap.get(col[0]);
 					Annotation go1 = annotationList.get(annotationIdx); 
-
-					/* iterate through proteins of given annotation to only output those part of the network */ 
-
-					double fdr = 1; 
+					
+					double fdr = 1;
+					String fdrToPrint = "";
+					boolean zeroFDR = false;
+					/* iterate through fdr - pval associations */
 					for(int i=0; i<fdrs.size(); i++) {
 						FalseDiscoveryRate thresholds = fdrs.get(i);
-
-						if(thresholds.getPvalue() > go1.getPvalue()) {
+						
+						/* update current fdr while threshold is greater than annotations pval */
+						if(thresholds.getPvalue() >= go1.getPvalue()) {
 							fdr = thresholds.getFalseDiscoveryRate();
-							if(fdr > 0) {
+							if (fdr == 0) {
+								zeroFDR = true;
+							}
+							if (fdr > 0 && !zeroFDR) {
+								fdrToPrint = Double.toString(fdr);
 								break;	
+							} else if(fdr > 0 && zeroFDR) {
+								fdrToPrint = "<" + Double.toString(fdr);
+								break;
 							}
 						}
 					}
 
 					out.write(col[0] + "\t" + col[1] + "\t" + col[2]+ "\t" + go1.getNumberOfProteins() + "\t" + 
-							+ go1.getPvalue() + "\t" + fdr + "\t");
+							+ go1.getPvalue() + "\t" + fdrToPrint + "\t");
 
 					for(int i=0; i<go1.getProteinIds().size(); i++) {
 						out.write(go1.getProteinIds().get(i) + "|");

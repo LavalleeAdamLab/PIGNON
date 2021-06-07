@@ -37,6 +37,21 @@ public class NetworkProteins {
 
             proteinList.add(protein1); // add protein object to protein list
         }
+       
+		
+//        try {
+//			BufferedWriter out = new BufferedWriter(new FileWriter(new File ("C://Users//Rachel//Documents//PIGNON//proteinsInStringNetwork2.tsv")));
+//
+//			for(String id: proteinNetworkSet ){
+//				out.write(id + "\n");
+//				out.flush();
+//			}
+//
+//			out.close();		
+//		}catch (Exception e) {
+//			e.printStackTrace();
+//		} 
+
         return proteinList;
     } // close getProteinsInNetwork
     
